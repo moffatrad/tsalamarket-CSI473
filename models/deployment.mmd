@@ -1,0 +1,57 @@
+flowchart TB
+    subgraph Z0["Zone 0 - Public / untrusted (outside team control)"]
+        direction LR
+        Phone["«device»\nFarmer feature phone\nUSSD dial / SMS"]
+        Browser["«device»\nWeb browser: Farmer, Vendor, Buyer,\nExtension Officer, System Admin"]
+    end
+
+    subgraph EXT["External service (not owned by the team)"]
+        direction LR
+        Telecom["«external service»\nTelecom network + USSD Gateway\n(target - out of scope this semester)"]
+        Sim["«test harness»\nUSSD Simulator\n(semester stand-in, same callback contract)"]
+    end
+
+    Phone -->|"USSD / SMS"| Telecom
+
+    subgraph Z1["Zone 1 - Application zone (internet-facing endpoints only)"]
+        subgraph APPNODE["«execution environment»  Application node (single VM or container)"]
+            direction LR
+            Web["Web / REST Adapter\n(HTTPS listener)"]
+            USSD["USSD Adapter\n(callback endpoint)"]
+            Core["Application services\n+ Domain model"]
+            Worker["AggregateRecomputeWorker\nevent-triggered;\ndaily sweep proposed (OI-2)"]
+            Sup["Process supervisor\n(auto-restarts the process)"]
+        end
+    end
+
+    Browser -->|"B1: HTTPS (TLS)"| Web
+    Telecom -->|"B2: HTTPS callback,\nshared secret + IP allowlist"| USSD
+    Sim -.->|"B2: same callback\n(dev / test / demo only)"| USSD
+    Web --> Core
+    USSD --> Core
+    Core -.->|"in-process event:\nPriceEntryVerified"| Worker
+
+    subgraph Z2["Zone 2 - Private data zone (no route from the internet)"]
+        subgraph DBNODE["«execution environment»  Database node"]
+            DB[("Relational DBMS\nPriceEntry, BucketAggregate, FairPriceCheckQuery,\nAuditLogRecord, SystemConfiguration,\nConversionFactorTable, Account")]
+        end
+        Backup[("Backup storage\nnightly dump, restore-tested")]
+    end
+
+    Core -->|"B3: SQL over TLS, private network\nDB role 'app'"| DB
+    Worker -->|"B3: SQL over TLS, private network\nDB role 'worker'"| DB
+    DB -->|"nightly backup"| Backup
+
+    Legend["Boundaries (detail in deployment.md)\nB1 Internet to app: TLS; Admin/Vendor/Buyer authenticated; farmer check anonymous (BR-11)\nB2 Telecom to USSD Adapter: shared secret + IP allowlist, else rejected\nB3 App to DB: only the app node can reach the DB; least-privilege roles; AuditLogRecord INSERT-only (BR-12)\nF1 App node is a single point of failure (ADR-001); supervisor restarts it, no standby\nF2 DB node is a single point of failure; recovery = restore latest backup (up to 24h of data at risk)"]
+
+    Z2 ~~~ Legend
+
+    style Z0 fill:#f5f5f5,stroke:#888,stroke-dasharray: 3 3
+    style EXT fill:#fafafa,stroke:#888,stroke-dasharray: 3 3
+    style Z1 fill:#fdf3d0,stroke:#8a6d00
+    style APPNODE fill:#fffef5,stroke:#8a6d00
+    style Z2 fill:#e7f5e7,stroke:#2a7a2a
+    style DBNODE fill:#f6fff6,stroke:#2a7a2a
+    style Sim fill:#ffffff,stroke:#888,stroke-dasharray: 4 3
+    style Worker fill:#ffe9cc,stroke:#a35a00
+    style Legend fill:#ffffff,stroke:#a33,stroke-dasharray: 2 2,color:#333,text-align:left
