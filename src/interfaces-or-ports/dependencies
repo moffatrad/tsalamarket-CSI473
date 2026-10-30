@@ -1,0 +1,26 @@
+             Farmer / USSD Adapter
+                      |
+                      v
+              CheckMyOfferService
+                      |
+             +--------+--------+
+             |                 |
+             v                 v
+     MarketPriceReadPort    ClockPort
+             |
+             v
+      PostgreSQL Adapter
+
+
+             Vendor Interface
+                      |
+                      v
+              SubmitPriceService
+                      |
+             +--------+--------+
+             |                 |
+             v                 v
+    PriceSubmissionWritePort  AuditLogPort
+             |                 |
+             v                 v
+      PostgreSQL Adapter   Audit Storage
